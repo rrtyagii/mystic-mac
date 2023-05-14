@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import os
 import openai
+import requests
 
 import dotenv
 from flask import Flask, json, request
@@ -56,7 +57,15 @@ def payload_verification(body, signature):
         return f"Unexpected error in payload_verification: {str(e)}", 500
     
 
-def fetch_requirements(data):
+# def fetch_requirements(data):
+    resp = {
+        'status_code': 500, 
+        'response': "Error in fetching requirements",
+        'phone_number_id': '', 
+        'message_from' : '',
+        'message_id':''
+    }
+
     try:
         for entries in data['entry']:
             for change in entries['changes']:
@@ -73,20 +82,132 @@ def fetch_requirements(data):
                                     message_body = message['text']['body']
                                     message_id = message['id']
 
-        return ((phone_number_id, message_id, message_from),"HTTPS 200 OK", 200)
+                                    resp['status_code'] = 200
+                                    resp['response'] = "HTTPS 200 OK" 
+                                    resp['phone_number_id'] = phone_number_id
+                                    resp['message_from'] = message_from
+                                    resp['message_id'] = message_id
+
+        return resp
 
     except KeyError as e:
         print(f"KeyError: {e}")
         # Handle the error, or return an appropriate response
-        return ("Error in fetching requirements", 500)
+        return resp
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        # Handle the error, or return an appropriate response
+        return resp
+
+def fetch_requirements(data):
+    resp = {
+        'status_code': 500, 
+        'response': "Error in fetching requirements",
+        'phone_number_id': '', 
+        'message_from' : '',
+        'message_id':''
+    }
+
+    resp_status = {
+        'status_code': 500, 
+        'response': "Error in fetching requirements",
+        'status_id': '', 
+        'status_value' : '',
+        'status_timestamp':'',
+        'recipient_id' : ''
+    }
+    
+    try:
+        for entries in data.get('entry', []):
+            for change in entries.get('changes', []):
+                value = change.get('value', {})
+                if value:
+                    metadata = value.get('metadata', {})
+                    phone_number_id = metadata.get('phone_number_id')
+
+                    # Check for 'messages'
+                    messages = value.get('messages')
+                    if messages is not None:
+                        for message in messages:
+                            if message.get('type') == "text":
+                                message_from = message.get('from')
+                                message_body = message.get('text', {}).get('body')
+                                message_id = message.get('id')
+
+                                resp['status_code'] = 200
+                                resp['response'] = "HTTPS 200 OK" 
+                                resp['phone_number_id'] = phone_number_id
+                                resp['message_from'] = message_from
+                                resp['message_id'] = message_id
+
+                    # Check for 'statuses'
+                    statuses = value.get('statuses')
+                    if statuses is not None:
+                        for status in statuses:
+                            status_id = status.get('id')
+                            status_value = status.get('status')
+                            status_timestamp = status.get('timestamp')
+                            recipient_id = status.get('recipient_id')
+
+                            resp_status['status_code'] = 200
+                            resp_status['response'] = "HTTPS 200 OK" 
+                            resp_status['status_id'] = status_id
+                            resp_status['status_value'] = status_value
+                            resp_status['status_timestamp'] = status_timestamp
+                            resp_status['recipient_id'] = recipient_id
+                   
+                    print("resp_status")
+                    print(resp_status)
+
+        return resp
+
+        # Modify the return statement to include the new values
+
+    except KeyError as e:
+        print(f"KeyError: {e}")
+        # Handle the error, or return an appropriate response
+        return resp
 
     except Exception as e:
         print(f"Unexpected error: {e}")
         # Handle the error, or return an appropriate response
         return ("Unexpected error", 500)
 
-def sending_reply(senders_phone_number_id, reciepient_number, message_id, message):
-    pass
+
+def sending_reply(senders_phone_number_id, message_id, reciepient_number, message):
+    url = f"https://graph.facebook.com/v16.0/{senders_phone_number_id}/messages"
+    permanent_token = os.getenv("META_PERMANENT_TOKEN")
+    headers = {
+            "Authorization": f"Bearer {permanent_token}",
+            "Content-Type": "application/json"
+        }
+    data = {
+        "messaging_product": "whatsapp",
+        "context": {
+            "message_id": message_id
+        },
+        "recipient_type": "individual",
+        "to": reciepient_number,
+        "type": "text",
+        "text": { 
+            "preview_url": False,
+            "body": message
+            }
+    }
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(data))
+        resp = {
+            'status' : 200, 
+            'response' : 'HTTPS 200 OK',
+            'body' : response.json
+        }
+        return resp
+    except Exception as E:
+        print(f"Unexpected error: {E}")
+        # Handle the error, or return an appropriate response
+        return (f"Unexpected error {str(E)}", 500)
+
 
 @app.route("/", methods=['POST', 'GET'])
 def home():
@@ -108,9 +229,14 @@ def payload_api():
         signature = request.headers.get('X-Hub-Signature-256')
         validate_payload = payload_verification(data, signature)
         if validate_payload[1] == 200:
-            result, response, status_code = fetch_requirements(request.json)
-            print(result)
-        return (response, status_code)
+            result = fetch_requirements(request.json)
+            if result['status_code'] == 200:
+                 result2 = sending_reply(result['phone_number_id'], result['message_id'], result['message_from'], "Trying to send reply with permanent token")
+            print(f"result {str(result)}")
+            print()
+            print(f"result 2{str(result2)}")
+            print()
+        return ('HTTPS 200 OK', 200)
 
     if request.method == "GET":
         hub_mode = request.args.get('hub.mode')

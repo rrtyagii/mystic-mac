@@ -56,68 +56,13 @@ def payload_verification(body, signature):
         print(f"Unexpected error in payload_verification: {e}")
         return f"Unexpected error in payload_verification: {str(e)}", 500
     
-
-# def fetch_requirements(data):
-    resp = {
-        'status_code': 500, 
-        'response': "Error in fetching requirements",
-        'phone_number_id': '', 
-        'message_from' : '',
-        'message_id':''
-    }
-
-    try:
-        for entries in data['entry']:
-            for change in entries['changes']:
-                value = change['value']
-                if value:
-                    phone_number_id = value['metadata']['phone_number_id']
-
-                    if 'messages' in value:
-                        if(value['messages'] is not None):
-                            for message in value['messages']:
-
-                                if message['type'] == "text":
-                                    message_from = message['from']
-                                    message_body = message['text']['body']
-                                    message_id = message['id']
-
-                                    resp['status_code'] = 200
-                                    resp['response'] = "HTTPS 200 OK" 
-                                    resp['phone_number_id'] = phone_number_id
-                                    resp['message_from'] = message_from
-                                    resp['message_id'] = message_id
-
-        return resp
-
-    except KeyError as e:
-        print(f"KeyError: {e}")
-        # Handle the error, or return an appropriate response
-        return resp
-
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        # Handle the error, or return an appropriate response
-        return resp
-
 def fetch_requirements(data):
     resp = {
         'status_code': 500, 
         'response': "Error in fetching requirements",
-        'phone_number_id': '', 
-        'message_from' : '',
-        'message_id':''
+        'value':'',
+        'body':''
     }
-
-    resp_status = {
-        'status_code': 500, 
-        'response': "Error in fetching requirements",
-        'status_id': '', 
-        'status_value' : '',
-        'status_timestamp':'',
-        'recipient_id' : ''
-    }
-    
     try:
         for entries in data.get('entry', []):
             for change in entries.get('changes', []):
@@ -127,42 +72,45 @@ def fetch_requirements(data):
                     phone_number_id = metadata.get('phone_number_id')
 
                     # Check for 'messages'
-                    messages = value.get('messages')
-                    if messages is not None:
-                        for message in messages:
-                            if message.get('type') == "text":
-                                message_from = message.get('from')
-                                message_body = message.get('text', {}).get('body')
-                                message_id = message.get('id')
+                    if 'messages' in value:
+                        messages = value.get('messages')
+                        if messages is not None:
+                            for message in messages:
+                                if message.get('type') == "text":
+                                    message_from = message.get('from')
+                                    message_body = message.get('text', {}).get('body')
+                                    message_id = message.get('id')
 
-                                resp['status_code'] = 200
-                                resp['response'] = "HTTPS 200 OK" 
-                                resp['phone_number_id'] = phone_number_id
-                                resp['message_from'] = message_from
-                                resp['message_id'] = message_id
+                            resp['status_code'] = 200
+                            resp['response'] = "HTTPS 200 OK" 
+                            resp['value'] = 'messages'
+                            resp['body']={
+                                'phone_number_id': phone_number_id,
+                                'message_from': message_from,
+                                'message_body': message_body,
+                                'message_id': message_id
+                            }
 
+                    if 'statuses' in value:
                     # Check for 'statuses'
-                    statuses = value.get('statuses')
-                    if statuses is not None:
-                        for status in statuses:
-                            status_id = status.get('id')
-                            status_value = status.get('status')
-                            status_timestamp = status.get('timestamp')
-                            recipient_id = status.get('recipient_id')
-
-                            resp_status['status_code'] = 200
-                            resp_status['response'] = "HTTPS 200 OK" 
-                            resp_status['status_id'] = status_id
-                            resp_status['status_value'] = status_value
-                            resp_status['status_timestamp'] = status_timestamp
-                            resp_status['recipient_id'] = recipient_id
-                   
-                    print("resp_status")
-                    print(resp_status)
-
+                        statuses = value.get('statuses')
+                        if statuses is not None:
+                            for status in statuses:
+                                status_id = status.get('id')
+                                status_value = status.get('status')
+                                status_timestamp = status.get('timestamp')
+                                recipient_id = status.get('recipient_id')
+                            resp['status_code'] = 200
+                            resp['response'] = "HTTPS 200 OK" 
+                            resp['value'] = 'statuses'
+                            resp['body']={
+                                'status_id': status_id,
+                                'status_value': status_value,
+                                'status_timestamp': status_timestamp,
+                                'recipient_id': recipient_id
+                            }
+                        #return "HTTPS 200 OK", 200
         return resp
-
-        # Modify the return statement to include the new values
 
     except KeyError as e:
         print(f"KeyError: {e}")
@@ -197,12 +145,23 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
     }
     try:
         response = requests.post(url, headers=headers, data=json.dumps(data))
+        # print("in sending reply method: response is: ")
+        # print("response.json")
+        # print(response.json)
+        # print("response.raw")
+        # print(response.raw)
+        # print("response.content")
+        # print(response.content)
+        # print("response._content")
+        # print(response._content)
         resp = {
             'status' : 200, 
             'response' : 'HTTPS 200 OK',
-            'body' : response.json
+            'body' : response._content
         }
-        return resp
+        print("resp from sending reply is: ")
+        print(resp)
+        return "HTTPS 200 OK", 200
     except Exception as E:
         print(f"Unexpected error: {E}")
         # Handle the error, or return an appropriate response
@@ -230,12 +189,15 @@ def payload_api():
         validate_payload = payload_verification(data, signature)
         if validate_payload[1] == 200:
             result = fetch_requirements(request.json)
-            if result['status_code'] == 200:
-                 result2 = sending_reply(result['phone_number_id'], result['message_id'], result['message_from'], "Trying to send reply with permanent token")
-            print(f"result {str(result)}")
-            print()
-            print(f"result 2{str(result2)}")
-            print()
+            #print(result)
+            if result['status_code'] == 200 and result['value']=='messages':
+            #if result['status_code'] == 200:
+                body = result['body']
+                sending_reply(body['phone_number_id'], body['message_id'], body['message_from'], body['message_body'])
+            # print(f"result {str(result)}")
+            # print()
+            # print(f"result 2{str(result2)}")
+            # print()
         return ('HTTPS 200 OK', 200)
 
     if request.method == "GET":

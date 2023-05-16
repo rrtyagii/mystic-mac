@@ -17,6 +17,12 @@ openai.organization= os.getenv("OPENAI_ORGANIZATION")
 openai.api_key=os.getenv("OPENAI_API_KEY")
 
 # Verify the webhook from Facebook's servers
+
+"""
+returning HTTPS 200 ok even in except block because that's what facebook's API docs ssays. 
+
+https://stackoverflow.com/questions/75882393/whatsapp-business-api-webhook-getting-triggered-automatically
+"""
 def webhook_verification(hub_mode, hub_verify_token, hub_challenge):
     try:
         verification_token = os.getenv("META_VERIFICATION_TOKEN")
@@ -35,7 +41,7 @@ def webhook_verification(hub_mode, hub_verify_token, hub_challenge):
             return "Error, wrong validation token", 403
     except Exception as e:
         print(f"Unexpected error in webhook_verification: {e}")
-        return "Unexpected error in webhook_verification", 500
+        return ("HTTPS 200 OK", 200)
 
 
 # Verify the payload signature to ensure it's from Facebook
@@ -60,10 +66,10 @@ def payload_verification(body, signature):
                 return "HTTPS 200 OK", 200
     except IndexError:
         print("Error: Signature could not be split into two elements.")
-        return "Error: Signature could not be split into two elements.", 400
+        return ("HTTPS 200 OK", 200)
     except Exception as e:
         print(f"Unexpected error in payload_verification: {e}")
-        return f"Unexpected error in payload_verification: {str(e)}", 500
+        return ("HTTPS 200 OK", 200)
 
 """
 To do:
@@ -88,7 +94,8 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
         "text": { 
             "preview_url": False,
             "body": message
-            }
+            },
+        "sent_status":False
     }
     try:
         response = requests.post(url, headers=headers, data=json.dumps(data))
@@ -105,7 +112,7 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
     except Exception as E:
         print(f"Unexpected error: {E}")
         # Handle the error, or return an appropriate response
-        return (f"Unexpected error {str(E)}", 500)
+        return ("HTTPS 200 OK", 200)
 
 
 # def open_ai_trial(prompt):
@@ -124,19 +131,24 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
 #     return reply
 
 def open_ai_trial(prompt):
-    messages = []
-    messages.append({"role": "system", "content": "You are a friendly, helpulful, loving, polite large language model called BetaGPT trained by Rishabh Tyagi, based on the GPT-4 architecture. You respond in Hindi always."})
+    try:
+        messages = []
+        messages.append({"role": "system", "content": "You are a friendly, helpulful, loving, polite large language model called BetaGPT trained by Rishabh Tyagi, based on the GPT-4 architecture."})
 
-    messages.append({"role": "user", "content": prompt})
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=messages)
-    reply = response["choices"][0]["message"]["content"]
-    messages.append({"role": "assistant", "content": reply})
+        messages.append({"role": "user", "content": prompt})
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=messages)
+        reply = response["choices"][0]["message"]["content"]
+        messages.append({"role": "assistant", "content": reply})
 
-    print("in open_ai_trial method. Here is the messages array: \n" + str(messages) + "\n")
-    print("in open_ai_trial method. Here is the reply from openAI: \n" + reply + "\n")
-    return reply
+        print("in open_ai_trial method. Here is the messages array: \n" + str(messages) + "\n")
+        print("in open_ai_trial method. Here is the reply from openAI: \n" + reply + "\n")
+        return reply
+    except Exception as E:
+        print(f"Unexpected error: {E}")
+        # Handle the error, or return an appropriate response
+        return ("HTTPS 200 OK", 200)
 
 
 @app.route("/", methods=['POST', 'GET'])
@@ -198,12 +210,12 @@ def payload_api():
             except KeyError as e:
                 print(f"KeyError: {e}")
                 # Handle the error, or return an appropriate response
-                return ("KeyError", 500)
+                return ("HTTPS 200 OK", 200)
 
             except Exception as e:
                 print(f"Unexpected error: {e}")
                 # Handle the error, or return an appropriate response
-                return ("Unexpected error", 500)
+                return ("HTTPS 200 OK", 200)
 
     if request.method == "GET":
         hub_mode = request.args.get('hub.mode')

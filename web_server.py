@@ -1,4 +1,4 @@
-import asyncio
+
 import hashlib
 import hmac
 import os
@@ -7,17 +7,20 @@ import dotenv
 import openai
 import requests
 from flask import Flask, json, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_pymongo import PyMongo
 
 dotenv.load_dotenv() # Load environment variables from a .env file
 
 app = Flask(__name__)
+limiter = Limiter(get_remote_address, app=app, default_limits=["5 per seconds"])
 
 # Set OpenAI API key and organization ID
 openai.organization= os.getenv("OPENAI_ORGANIZATION")
 openai.api_key=os.getenv("OPENAI_API_KEY")
 
 # Verify the webhook from Facebook's servers
-
 """
 returning HTTPS 200 ok even in except block because that's what facebook's API docs ssays. 
 
@@ -95,7 +98,6 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
             "preview_url": False,
             "body": message
             },
-        "sent_status":False
     }
     try:
         response = requests.post(url, headers=headers, data=json.dumps(data))
@@ -105,8 +107,8 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
                 'response' : 'HTTPS 200 OK',
                 'body' : response._content
             }
-            print("resp from sending reply is: ")
-            print(resp)
+            #print("resp from sending reply is: ")
+            #print(resp)
             # return "HTTPS 200 OK", 200
             return resp
     except Exception as E:
@@ -114,21 +116,6 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
         # Handle the error, or return an appropriate response
         return ("HTTPS 200 OK", 200)
 
-
-# def open_ai_trial(prompt):
-#     messages = []
-#     messages.append({"role": "system", "content": "You are a friendly, helpulful, loving, polite large language model called BetaGPT trained by Rishabh Tyagi, based on the GPT-4 architecture. You respond in Hindi always."})
-
-#     messages.append({"role": "user", "content": prompt})
-#     response = openai.ChatCompletion.create(
-#         model="gpt-3.5-turbo",
-#         messages=messages)
-#     reply = response["choices"][0]["message"]["content"]
-#     messages.append({"role": "assistant", "content": reply})
-
-#     print("in open_ai_trial method. Here is the messages array: \n" + str(messages) + "\n")
-#     print("in open_ai_trial method. Here is the reply from openAI: \n" + reply + "\n")
-#     return reply
 
 def open_ai_trial(prompt):
     try:
@@ -141,10 +128,7 @@ def open_ai_trial(prompt):
             messages=messages)
         reply = response["choices"][0]["message"]["content"]
         messages.append({"role": "assistant", "content": reply})
-
-        print("in open_ai_trial method. Here is the messages array: \n" + str(messages) + "\n")
-        print("in open_ai_trial method. Here is the reply from openAI: \n" + reply + "\n")
-        return reply
+        return reply, messages
     except Exception as E:
         print(f"Unexpected error: {E}")
         # Handle the error, or return an appropriate response
@@ -152,6 +136,7 @@ def open_ai_trial(prompt):
 
 
 @app.route("/", methods=['POST', 'GET'])
+#@limiter.limit("5 per second")
 def home():
     output = (f"URL: {request.url} \n") + (f"Method: {request.method} \n") + (f"Headers: {request.headers} \n") + (f"Args: {request.args} \n") + (f"Data: {request.data} \n") + (f"Form: {request.form} \n")
 
@@ -165,6 +150,7 @@ def home():
      
     
 @app.route('/payload', methods=['POST', 'GET'])
+#@limiter.limit("1 per second") #maximum of 6 requests per minute or 1 request per 10 seconds. 
 def payload_api():
     if request.method == "POST":
         data=request.get_data()
@@ -186,26 +172,33 @@ def payload_api():
                             if 'messages' in value:
                                 messages = value['messages']
                                 if messages is not None:
-                                    print("messages: \n")
+                                    print("\nmessages:")
                                     print(messages)
                                     for message in messages:
-                                        if message.get('type') == "text":
+                                        if message['type'] == "text":
                                             message_from = message.get('from')
                                             message_body = message.get('text', {}).get('body')
                                             message_id = message.get('id')
-    
-                                reply_to_send = open_ai_trial(message_body)
+                                        elif message['type'] == "audio":
+                                            
+                                            pass
+
+                                reply_to_send, messages_array = open_ai_trial(message_body)
                                 response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
+
+                                print("\nmessasges array")
+                                print(messages_array)
+
                                 if response['status_code'] == 200:
-                                    print(response['body'])
+                                    #print(response['body'])
                                     return 'HTTPS 200 OK', 200
                             
                             if 'statuses' in value:
                                 statuses = value.get('statuses')
                                 if statuses is not None:
-                                    print("statuses: \n")
-                                    print(statuses)
-                                return "HTTPS 200 OK", 200
+                                    # print("statuses: \n")
+                                    # print(statuses)
+                                    return "HTTPS 200 OK", 200
     
             except KeyError as e:
                 print(f"KeyError: {e}")
@@ -231,157 +224,3 @@ def payload_api():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-"""
-try:
-        # Iterate through the entries in the incoming data
-        for entries in data['entry']:
-            # Iterate through the changes in each entry
-            for change in entries['changes']:
-                value = change.get('value', {})
-                if value:
-                    metadata = value.get('metadata', {})
-                    phone_number_id = metadata.get('phone_number_id')
-
-                    # # Check for 'messages' in the value
-                    if 'messages' in value:
-                        messages = value.get('messages')
-                        if messages is not None:
-                            for message in messages:
-                                if message.get('type') == "text":
-                                    message_from = message.get('from')
-                                    message_body = message.get('text', {}).get('body')
-                                    message_id = message.get('id')
-                            # Update response if a message is found
-                            resp['status_code'] = 200
-                            resp['response'] = "HTTPS 200 OK" 
-                            resp['value'] = 'messages'
-                            resp['body']={
-                                'phone_number_id': phone_number_id,
-                                'message_from': message_from,
-                                'message_body': message_body,
-                                'message_id': message_id
-                            }
-                    
-                    #Check for 'statuses' in the value
-                    if 'statuses' in value:
-                        statuses = value.get('statuses')
-                        if statuses is not None:
-                            for status in statuses:
-                                status_id = status.get('id')
-                                status_value = status.get('status')
-                                status_timestamp = status.get('timestamp')
-                                recipient_id = status.get('recipient_id')
-                            
-                            # Update response if a status is found
-                            resp['status_code'] = 200
-                            resp['response'] = "HTTPS 200 OK" 
-                            resp['value'] = 'statuses'
-                            resp['body']={
-                                'status_id': status_id,
-                                'status_value': status_value,
-                                'status_timestamp': status_timestamp,
-                                'recipient_id': recipient_id
-                            }
-                        #return "HTTPS 200 OK", 200
-        return resp
-
-    except KeyError as e:
-        print(f"KeyError: {e}")
-        # Handle the error, or return an appropriate response
-        return resp
-
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        # Handle the error, or return an appropriate response
-        return ("Unexpected error", 500)
-
-"""
-
-#     result = fetch_requirements(request.json)
-#     #print(result)
-#     if result['value'] == 'statuses':
-#         return "HTTPS 200 OK", 200
-#     else:
-#         if result['status_code'] == 200 and result['value']=='messages':
-#         #if result['status_code'] == 200:
-#             body = result['body']
-#             sending_reply(body['phone_number_id'], body['message_id'], body['message_from'], body['message_body'])
-#         # print(f"result {str(result)}")
-#         # print()
-#         # print(f"result 2{str(result2)}")
-#         # print()
-# return ('HTTPS 200 OK', 200)
-
-# Fetch the requirements from the data payload
-# def fetch_requirements(data):
-#     resp = {
-#         'status_code': 500, 
-#         'response': "Error in fetching requirements",
-#         'value':'',
-#         'body':''
-#     }
-#     try:
-#         # Iterate through the entries in the incoming data
-#         for entries in data['entry']:
-#             # Iterate through the changes in each entry
-#             for change in entries['changes']:
-#                 value = change.get('value', {})
-#                 if value:
-#                     metadata = value.get('metadata', {})
-#                     phone_number_id = metadata.get('phone_number_id')
-
-#                     # # Check for 'messages' in the value
-#                     if 'messages' in value:
-#                         messages = value.get('messages')
-#                         if messages is not None:
-#                             for message in messages:
-#                                 if message.get('type') == "text":
-#                                     message_from = message.get('from')
-#                                     message_body = message.get('text', {}).get('body')
-#                                     message_id = message.get('id')
-#                             # Update response if a message is found
-#                             resp['status_code'] = 200
-#                             resp['response'] = "HTTPS 200 OK" 
-#                             resp['value'] = 'messages'
-#                             resp['body']={
-#                                 'phone_number_id': phone_number_id,
-#                                 'message_from': message_from,
-#                                 'message_body': message_body,
-#                                 'message_id': message_id
-#                             }
-                    
-#                     #Check for 'statuses' in the value
-#                     if 'statuses' in value:
-#                         statuses = value.get('statuses')
-#                         if statuses is not None:
-#                             for status in statuses:
-#                                 status_id = status.get('id')
-#                                 status_value = status.get('status')
-#                                 status_timestamp = status.get('timestamp')
-#                                 recipient_id = status.get('recipient_id')
-                            
-#                             # Update response if a status is found
-#                             resp['status_code'] = 200
-#                             resp['response'] = "HTTPS 200 OK" 
-#                             resp['value'] = 'statuses'
-#                             resp['body']={
-#                                 'status_id': status_id,
-#                                 'status_value': status_value,
-#                                 'status_timestamp': status_timestamp,
-#                                 'recipient_id': recipient_id
-#                             }
-#                         #return "HTTPS 200 OK", 200
-#         return resp
-
-#     except KeyError as e:
-#         print(f"KeyError: {e}")
-#         # Handle the error, or return an appropriate response
-#         return resp
-
-#     except Exception as e:
-#         print(f"Unexpected error: {e}")
-#         # Handle the error, or return an appropriate response
-#         return ("Unexpected error", 500)
-

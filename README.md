@@ -81,7 +81,7 @@
 
 [![Product Name Screen Shot][product-screenshot]](https://example.com)
 
-I wanted to hack and create a chatbot for myself. Ended up dciding to make a whatsapp chatbot which connects to GPT-3.5-Turbo. This behaves somewhat like chat-gpt. 
+I wanted to hack and create a chatbot for myself. Ended up dciding to make a whatsapp chatbot which connects to GPT-3.5-Turbo. This behaves somewhat like chat-gpt. I was insipired by [GOD IN A BOX](https://godinabox.co/). Do check them out!
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -140,6 +140,7 @@ To get a local copy up and running follow these simple example steps.
 - [ ] Multi-language Support on voice note messages
     - [ ] English
     - [ ] Spanish
+- [ ] Information security (conversations, phone numbers, etc)
 
 See the [open issues](https://github.com/othneildrew/Best-README-Template/issues) for a full list of proposed features (and known issues).
 
@@ -177,12 +178,11 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 <!-- CONTACT -->
 ## Contact
 
-Rishabh Tyagi - [@your_twitter](https://twitter.com/AllAuover) - rtyagi1@hawk.iit.edu
+Rishabh Tyagi - [@AllAuover](https://twitter.com/AllAuover) - rtyagi1@hawk.iit.edu
 
 Project Link: [https://github.com/rrtyagii/mystic-mac](hhttps://github.com/rrtyagii/mystic-mac)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 
 
 <!-- ACKNOWLEDGMENTS -->

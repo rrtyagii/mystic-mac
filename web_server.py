@@ -1,6 +1,3 @@
-# My poor coding practice is shown here:
-# even in the exceptions or errors I am returning ("HTTPS 200 OK", 200) because of the repeated webhook events. I need to solve it still.
-
 import hashlib
 import hmac
 import os
@@ -30,7 +27,7 @@ meta_permanent_token = os.getenv("META_PERMANENT_TOKEN")
 
 # Verify the webhook from Facebook's servers
 """
-returning HTTPS 200 ok even in except block because that's what facebook's API docs ssays. 
+returning HTTPS 200 OK, 200 even in except block because that's what facebook's API docs ssays. 
 
 https://stackoverflow.com/questions/75882393/whatsapp-business-api-webhook-getting-triggered-automatically
 """
@@ -52,7 +49,7 @@ def webhook_verification(hub_mode, hub_verify_token, hub_challenge):
             return "Error, wrong validation token", 403
     except Exception as e:
         print(f"Unexpected error in webhook_verification: {e}")
-        return ("HTTPS 200 OK", 200)
+        return ("HTTPS 500 FAIL", 500)
 
 
 # Verify the payload signature to ensure it's from Facebook
@@ -80,7 +77,7 @@ def payload_verification(body, signature):
         return ("HTTPS 200 OK", 200)
     except Exception as e:
         print(f"Unexpected error in payload_verification: {e}")
-        return ("HTTPS 200 OK", 200)
+        return ("HTTPS 500 FAIL", 500)
 
 """
 To do:
@@ -88,6 +85,8 @@ To do:
 1. Well so right now I am getting tons of requests for the message status. I need to figure out a way so that the whatsapp knows that I got the webhook. --> Fixed
 """
 def sending_reply(senders_phone_number_id, message_id, reciepient_number, message):
+    print("\n in sending reply")
+
     url = f"https://graph.facebook.com/v16.0/{senders_phone_number_id}/messages"
     headers = {
             "Authorization": f"Bearer {meta_permanent_token}",
@@ -108,26 +107,28 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
     }
     try:
         response = requests.post(url, headers=headers, data=json.dumps(data))
+
         if response.status_code == 200:
+            #print("in the if response.status_code == 200: line 115 ")
             resp = {
                 'status_code' : response.status_code, 
-                'response' : 'HTTPS 200 OK',
-                'body' : response._content
+                'reason' : 'HTTPS 200 OK',
+                'body' : response.content
             }
         else:
+            #print("in the if response.status_code == 200: line 123 ")
             resp = {
                 'status_code' : response.status_code, 
-                'response' : response.reason,
-                'body' : response.json()
+                'reason' : "request error",
+                'body' : response.content
             }
-            #print("resp from sending reply is: ")
-            #print(resp)
-            # return "HTTPS 200 OK", 200
-            return resp
+        return resp
+        
     except Exception as E:
-        print(f"Unexpected error: {E}")
+        print("\nUnexpected error in sending_reply:")
+        print(E)
         # Handle the error, or return an appropriate response
-        return ("HTTPS 200 OK", 200)
+        return ("HTTPS 500 Internal Error", 500)
 
 
 """
@@ -192,8 +193,6 @@ def audio_message(phone_number_id, audio_media_id):
         I need to extract the url and make a GET request on that URL. 
         """
         response = requests.get(url, headers=sending_headers).json()
-        print("\nresponse in audio_message function")
-        print(response)
 
         """
         The response would have the binary data of audio/ogg format. to access the binary content, I need to return response.content here. 
@@ -213,7 +212,6 @@ def audio_message(phone_number_id, audio_media_id):
         return ("HTTPS 200 OK", 200)
 
 def transcribe_audio(binary_data):
-    print("\n in audio transcribe method\n")
     try:
         # Create a file-like object from the binary data
         ogg_file_like = io.BytesIO(binary_data)
@@ -234,58 +232,47 @@ def transcribe_audio(binary_data):
             audio = r.record(source)  # read the entire audio file
             #Google Speech Recognition (Hindi) results
             transcription_text = r.recognize_google(audio,language='hi-IN')
-        print(type(transcription_text))
-        print(f"transcription_text: {transcription_text}")
         return transcription_text
+    
     except sr.UnknownValueError:
         print("Google Speech Recognition could not understand audio")
-        return ("HTTPS 200 OK", 200)
+        return ("HTTPS BAD REQUEST", 400)
     except sr.RequestError as e:
         print(f"Could not request results from Google Speech Recognition service; {e}")
-        return ("HTTPS 200 OK", 200)
+        return ("HTTPS Service Unavailable OR BAD REQUEST", 400)
     except Exception as e:
         print("Exception occurred in transcribe method: " + str(e))
-        return ("HTTPS 200 OK", 200)  # convert the exception to a string before returning it
+        return ("HTTPS INTERNAL SERVER ERROR", 500)  # convert the exception to a string before returning it
 
 
 def open_ai_trial(prompt):
     try:
-        history = open_ai_conversation_array
         messages = []
         messages.append({"role": "system", "content": "You are ChatGPT, an advanced AI assistant developed by OpenAI and specially adapted by Rishabh Tyagi. You are interacting with Rishabh's parents, who are not very familiar with navigating technology. Your goal is to provide patient, respectful, and clear assistance to them as they learn to navigate and use their phone and other technology. Remember, your responses should be easy to understand, avoiding technical jargon whenever possible. You're here to make technology less intimidating and more accessible for them."})
 
         messages.append({"role": "user", "content": prompt})
+
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=messages)
+            messages=messages
+        )
+        # print("\n response in open_ai_trial")
+        #print(response)
+        
         reply = response["choices"][0]["message"]["content"]
+        # print("\n reply in open_ai_trial")
+        # print(reply)
+
         messages.append({"role": "assistant", "content": reply})
+        # print("\n messages in open_ai_trial")
+        # print(messages)
+
         return reply, messages
 
-    except openai.InvalidRequestError as e:
-        print(f"Invalid request: {e}")
-        print("Invalid request", 400)
-        return ("HTTPS 200 OK", 200)
-
-    except openai.AuthenticationError as e:
-        print(f"Authentication error: {e}")
-        print("Authentication error", 401)
-        return ("HTTPS 200 OK", 200)
-
-    except openai.RateLimitError as e:
-        print(f"Rate limit exceeded: {e}")
-        print("Rate limit exceeded", 429)
-        return ("HTTPS 200 OK", 200)
-
-    except openai.APIError as e:
-        print(f"API error: {e}")
-        print("API error", 500)
-        return ("HTTPS 200 OK", 200)
-
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        print("Unexpected error", 500)
-        return ("HTTPS 200 OK", 200)
+        print("\nUnexpected error in open_ai_trial:")
+        print(e)
+        return("INTERNAL ERROR", 500)
 
 
 @app.route("/", methods=['POST', 'GET'])
@@ -320,7 +307,13 @@ def payload_api():
                         if value:
                             metadata = value['metadata']
                             phone_number_id = metadata.get('phone_number_id')
-                            
+
+                            if 'statuses' in value:
+                                print("\n in the stattuses if block")
+                                statuses = value.get('statuses')
+                                if statuses is not None:
+                                    return "HTTPS 200 OK", 200
+                                
                             #Check for 'messages' in the value
                             if 'messages' in value:
                                 messages = value['messages']
@@ -334,48 +327,40 @@ def payload_api():
                                         if message['type'] == "text":
                                             message_body = message.get('text', {}).get('body')
                                             reply_to_send, messages_array = open_ai_trial(message_body)
-                                            
-                                            if reply_to_send == "HTTPS 200 OK":
-                                                print("I think an error occurred in open_ai_trial method")
-                                                return ("HTTPS 200 OK", 200)
+                                            print("reply_to_send")
+                                            print(reply_to_send)
+                                            response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
+#                                            print("\nhere in message if message['type'] == text on line 338")
+#                                            print(response)
 
                                         elif message['type'] == "audio":
                                             audio = message["audio"]
                                             audio_media_id = audio["id"]
                                             response = audio_message(phone_number_id, audio_media_id)
                                             transcribed_text = transcribe_audio(response)
-
+                                            print("transcribed text")
+                                            print(transcribed_text)
                                             reply_to_send, messages_array = open_ai_trial(transcribed_text)
-                                            if reply_to_send == "HTTPS 200 OK":
-                                                print("I think an error occurred in open_ai_trial method")
-                                                return ("HTTPS 200 OK", 200)
-
-
-                                        response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
-                                        if response['status_code'] == 200:
-                                            open_ai_conversation_array.append(messages_array)
-                                            return 'HTTPS 200 OK', 200
-                                        else:
-                                            print("error occurred in sending the reply of the POST handler")
-                                            print(response)
-                                            return 'HTTPS 200 OK', 200
-                                        
-                            if 'statuses' in value:
-                                statuses = value.get('statuses')
-                                if statuses is not None:
-                                    return "HTTPS 200 OK", 200
-    
-            except KeyError as e:
-                print(f"KeyError: {e}")
-                # Handle the error, or return an appropriate response
+                                            print("reply_to_send")
+                                            print(reply_to_send)
+                                            response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
+#                                            print("\nhere in message if message['type'] == audio on line 347")
+ #                                           print(response)
                 return ("HTTPS 200 OK", 200)
-
-            except Exception as e:
-                print(f"Unexpected error: {e}")
+            except (Exception, KeyError) as e:
+                """
+                Some how I am entering in this block even and getting the post 400 bad request ! 
+                """
+                print("Exception or KeyError in payload_api : ")
+                print(e)
+                print(" Some how I am entering in this block even and getting the post 400 bad request ! ")
                 # Handle the error, or return an appropriate response
                 return ("HTTPS 200 OK", 200)
             
-
+        else:
+            print("Could not validate payload")
+            return ("HTTP BAD REQUEST", 400)
+            
     if request.method == "GET":
         hub_mode = request.args.get('hub.mode')
         hub_challenge = request.args.get('hub.challenge')
@@ -385,8 +370,8 @@ def payload_api():
         print(f"hub.challenge: {hub_challenge}")
         print(f"hub.verify_token: {hub_verify_token}")
 
-        validate_payload = webhook_verification(hub_mode, hub_verify_token, hub_challenge)
-        return validate_payload
+        webhook_verify = webhook_verification(hub_mode, hub_verify_token, hub_challenge)
+        return webhook_verify
 
 if __name__ == '__main__':
     app.run(debug=True)

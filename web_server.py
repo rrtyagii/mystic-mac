@@ -10,6 +10,8 @@ from flask import Flask, json, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_pymongo import PyMongo
+import IPython.utils
+from IPython.display import Audio
 
 dotenv.load_dotenv() # Load environment variables from a .env file
 
@@ -19,6 +21,9 @@ limiter = Limiter(get_remote_address, app=app, default_limits=["5 per seconds"])
 # Set OpenAI API key and organization ID
 openai.organization= os.getenv("OPENAI_ORGANIZATION")
 openai.api_key=os.getenv("OPENAI_API_KEY")
+
+#meta's token
+meta_permanent_token = os.getenv("META_PERMANENT_TOKEN")
 
 # Verify the webhook from Facebook's servers
 """
@@ -77,13 +82,12 @@ def payload_verification(body, signature):
 """
 To do:
 
-1. Well so right now I am getting tons of requests for the message status. I need to figure out a way so that the whatsapp knows that I got the webhook. 
+1. Well so right now I am getting tons of requests for the message status. I need to figure out a way so that the whatsapp knows that I got the webhook. --> Fixed
 """
 def sending_reply(senders_phone_number_id, message_id, reciepient_number, message):
     url = f"https://graph.facebook.com/v16.0/{senders_phone_number_id}/messages"
-    permanent_token = os.getenv("META_PERMANENT_TOKEN")
     headers = {
-            "Authorization": f"Bearer {permanent_token}",
+            "Authorization": f"Bearer {meta_permanent_token}",
             "Content-Type": "application/json"
         }
     data = {
@@ -115,6 +119,35 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
         print(f"Unexpected error: {E}")
         # Handle the error, or return an appropriate response
         return ("HTTPS 200 OK", 200)
+
+
+"""
+writing a function to download the audio file in a audio message:
+"""
+
+def audio_message(phone_number_id, audio_media_id):
+    url = f"https://graph.facebook.com/v16.0/{audio_media_id}/"
+    sending_headers = {
+            "Authorization": f"Bearer {meta_permanent_token}",
+    }
+    try:
+        response = requests.get(url, headers=sending_headers).json()
+        print("\nresponse in audio_message function")
+        print(response)
+
+        download_url = response['url']
+        response = requests.get(download_url, headers=sending_headers)
+        print("\nresponse.content after hitting the download url in audio_message function")
+        print(response.content)
+        return response
+    except requests.RequestException as re:
+        print("\na request exception occurred in audio_message function")
+        print(re)
+        return re
+    except Exception as e:
+        print("\n an error occurred in audio_message function")
+        print(e)
+        return e
 
 
 def open_ai_trial(prompt):
@@ -179,19 +212,25 @@ def payload_api():
                                             message_from = message.get('from')
                                             message_body = message.get('text', {}).get('body')
                                             message_id = message.get('id')
-                                        elif message['type'] == "audio":
+
+                                            reply_to_send, messages_array = open_ai_trial(message_body)
+                                            response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
+
+                                            print("\nmessasges array")
+                                            print(messages_array)
+
+                                            if response['status_code'] == 200:
+                                                #print(response['body'])
+                                                return 'HTTPS 200 OK', 200
                                             
-                                            pass
-
-                                reply_to_send, messages_array = open_ai_trial(message_body)
-                                response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
-
-                                print("\nmessasges array")
-                                print(messages_array)
-
-                                if response['status_code'] == 200:
-                                    #print(response['body'])
-                                    return 'HTTPS 200 OK', 200
+                                        elif message['type'] == "audio":
+                                            audio = message["audio"]
+                                            audio_media_id = audio["id"]
+                                            response = audio_message(phone_number_id, audio_media_id)
+                                            # print("\n type (audio file)")
+                                            # type(response)
+                                            # print("\n response in type = audio ")
+                                            # print(response)
                             
                             if 'statuses' in value:
                                 statuses = value.get('statuses')
@@ -209,6 +248,7 @@ def payload_api():
                 print(f"Unexpected error: {e}")
                 # Handle the error, or return an appropriate response
                 return ("HTTPS 200 OK", 200)
+            
 
     if request.method == "GET":
         hub_mode = request.args.get('hub.mode')

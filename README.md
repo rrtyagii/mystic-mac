@@ -31,7 +31,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/rrtyagii/mystic-mac">
-    <img src="/Users/rishabhtyagi/Documents/mystic-mac/images/DALL·E 2022-08-10 17.40.59 - An astronaut lounging in a tropical resort in space, pixel art.png" alt="Logo" width="80" height="80">
+    <img src="images/DALL·E 2022-08-10 17.40.59 - An astronaut lounging in a tropical resort in space, pixel art.png" alt="Logo" width="80" height="80">
   </a>
 
   <h3 align="center">Mystic Mac</h3>

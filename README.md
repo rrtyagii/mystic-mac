@@ -51,17 +51,17 @@
 </div>
 
 
-
+<p align="center">
 https://github.com/rrtyagii/mystic-mac/assets/47730677/98dbfa03-3752-4d8c-8b07-c8e8600f3c67
+</p>
 
-
-
+<p align="center">
 https://github.com/rrtyagii/mystic-mac/assets/47730677/9f43a673-18f7-46f7-88ed-405827525361
+</p>
 
-
-
+<p align="center">
 https://github.com/rrtyagii/mystic-mac/assets/47730677/ae8c3e69-9496-4ef7-9522-3cbb38dbbb39
-
+</p>
 
 
 <!-- TABLE OF CONTENTS -->

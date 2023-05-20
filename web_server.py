@@ -1,17 +1,19 @@
+# My poor coding practice is shown here:
+# even in the exceptions or errors I am returning ("HTTPS 200 OK", 200) because of the repeated webhook events. I need to solve it still.
 
 import hashlib
 import hmac
 import os
+import io
 
 import dotenv
 import openai
 import requests
+import speech_recognition as sr
 from flask import Flask, json, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_pymongo import PyMongo
-import IPython.utils
-from IPython.display import Audio
+from pydub import AudioSegment
 
 dotenv.load_dotenv() # Load environment variables from a .env file
 
@@ -21,6 +23,7 @@ limiter = Limiter(get_remote_address, app=app, default_limits=["5 per seconds"])
 # Set OpenAI API key and organization ID
 openai.organization= os.getenv("OPENAI_ORGANIZATION")
 openai.api_key=os.getenv("OPENAI_API_KEY")
+open_ai_conversation_array = []
 
 #meta's token
 meta_permanent_token = os.getenv("META_PERMANENT_TOKEN")
@@ -111,6 +114,12 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
                 'response' : 'HTTPS 200 OK',
                 'body' : response._content
             }
+        else:
+            resp = {
+                'status_code' : response.status_code, 
+                'response' : response.reason,
+                'body' : response.json()
+            }
             #print("resp from sending reply is: ")
             #print(resp)
             # return "HTTPS 200 OK", 200
@@ -123,6 +132,44 @@ def sending_reply(senders_phone_number_id, message_id, reciepient_number, messag
 
 """
 writing a function to download the audio file in a audio message:
+
+According to facebook's documents [https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/#retrieve-media-url]
+
+Retrieve Media URL
+
+To retrieve your media’s URL, send a GET request to /MEDIA_ID. Use the returned URL to download the media file. Note that clicking this URL (i.e. performing a generic GET) will not return the media; you must include an access token. See Download Media [].
+
+Sample request:
+
+curl -X GET 'https://graph.facebook.com/v16.0/<MEDIA_ID>/' \
+-H 'Authorization: Bearer <ACCESS_TOKEN>'
+
+A successful response includes an object with a media url. The URL is only valid for 5 minutes. To use this URL, see Download Media.
+
+{
+  "messaging_product": "whatsapp",
+  "url": "<URL>",
+  "mime_type": "<MIME_TYPE>",
+  "sha256": "<HASH>",
+  "file_size": "<FILE_SIZE>",
+  "id": "<MEDIA_ID>"
+}
+
+Download Media
+
+To download media, make a GET call to your media’s URL. All media URLs expire after 5 minutes —you need to retrieve the media URL again if it expires. If you directly click on the URL you get from a /MEDIA_ID GET call, you get an access error.
+
+Example
+
+Sample request:
+
+curl  \
+ 'URL' \
+ -H 'Authorization: Bearer ACCESS_TOKEN' > media_file
+
+If successful, you will receive the binary data of media saved in media_file, response headers contain a content-type header to indicate the mime type of returned data. Check supported media types for more information.
+
+If media fails to download, you will receive a 404 Not Found response code. In that case, we recommend you try to retrieve a new media URL and download it again. If doing so doesn't resolve the issue, please try to renew the ACCESS_TOKEN then retry downloading the media.
 """
 
 def audio_message(phone_number_id, audio_media_id):
@@ -131,29 +178,81 @@ def audio_message(phone_number_id, audio_media_id):
             "Authorization": f"Bearer {meta_permanent_token}",
     }
     try:
+        """
+        the reponse is the of the following format:
+        {
+            "messaging_product": "whatsapp",
+            "url": "<URL>",
+            "mime_type": "<MIME_TYPE>",
+            "sha256": "<HASH>",
+            "file_size": "<FILE_SIZE>",
+            "id": "<MEDIA_ID>"
+        }
+
+        I need to extract the url and make a GET request on that URL. 
+        """
         response = requests.get(url, headers=sending_headers).json()
         print("\nresponse in audio_message function")
         print(response)
 
+        """
+        The response would have the binary data of audio/ogg format. to access the binary content, I need to return response.content here. 
+        """
         download_url = response['url']
         response = requests.get(download_url, headers=sending_headers)
-        print("\nresponse.content after hitting the download url in audio_message function")
-        print(response.content)
-        return response
+
+        return response.content
+    
     except requests.RequestException as re:
         print("\na request exception occurred in audio_message function")
         print(re)
-        return re
+        return ("HTTPS 200 OK", 200)
     except Exception as e:
         print("\n an error occurred in audio_message function")
         print(e)
-        return e
+        return ("HTTPS 200 OK", 200)
+
+def transcribe_audio(binary_data):
+    print("\n in audio transcribe method\n")
+    try:
+        # Create a file-like object from the binary data
+        ogg_file_like = io.BytesIO(binary_data)
+
+        # Load audio (ogg)
+        audio = AudioSegment.from_ogg(ogg_file_like)
+
+        # Export to wav (file-like object)
+        wav_file_like = io.BytesIO()
+        audio.export(wav_file_like, format='wav')
+
+        # "Rewind" the file-like object
+        wav_file_like.seek(0)
+
+        # Transcribe audio file
+        r = sr.Recognizer()
+        with sr.AudioFile(wav_file_like) as source:
+            audio = r.record(source)  # read the entire audio file
+            #Google Speech Recognition (Hindi) results
+            transcription_text = r.recognize_google(audio,language='hi-IN')
+        print(type(transcription_text))
+        print(f"transcription_text: {transcription_text}")
+        return transcription_text
+    except sr.UnknownValueError:
+        print("Google Speech Recognition could not understand audio")
+        return ("HTTPS 200 OK", 200)
+    except sr.RequestError as e:
+        print(f"Could not request results from Google Speech Recognition service; {e}")
+        return ("HTTPS 200 OK", 200)
+    except Exception as e:
+        print("Exception occurred in transcribe method: " + str(e))
+        return ("HTTPS 200 OK", 200)  # convert the exception to a string before returning it
 
 
 def open_ai_trial(prompt):
     try:
+        history = open_ai_conversation_array
         messages = []
-        messages.append({"role": "system", "content": "You are a friendly, helpulful, loving, polite large language model called BetaGPT trained by Rishabh Tyagi, based on the GPT-4 architecture."})
+        messages.append({"role": "system", "content": "You are ChatGPT, an advanced AI assistant developed by OpenAI and specially adapted by Rishabh Tyagi. You are interacting with Rishabh's parents, who are not very familiar with navigating technology. Your goal is to provide patient, respectful, and clear assistance to them as they learn to navigate and use their phone and other technology. Remember, your responses should be easy to understand, avoiding technical jargon whenever possible. You're here to make technology less intimidating and more accessible for them."})
 
         messages.append({"role": "user", "content": prompt})
         response = openai.ChatCompletion.create(
@@ -162,9 +261,30 @@ def open_ai_trial(prompt):
         reply = response["choices"][0]["message"]["content"]
         messages.append({"role": "assistant", "content": reply})
         return reply, messages
-    except Exception as E:
-        print(f"Unexpected error: {E}")
-        # Handle the error, or return an appropriate response
+
+    except openai.InvalidRequestError as e:
+        print(f"Invalid request: {e}")
+        print("Invalid request", 400)
+        return ("HTTPS 200 OK", 200)
+
+    except openai.AuthenticationError as e:
+        print(f"Authentication error: {e}")
+        print("Authentication error", 401)
+        return ("HTTPS 200 OK", 200)
+
+    except openai.RateLimitError as e:
+        print(f"Rate limit exceeded: {e}")
+        print("Rate limit exceeded", 429)
+        return ("HTTPS 200 OK", 200)
+
+    except openai.APIError as e:
+        print(f"API error: {e}")
+        print("API error", 500)
+        return ("HTTPS 200 OK", 200)
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        print("Unexpected error", 500)
         return ("HTTPS 200 OK", 200)
 
 
@@ -208,35 +328,41 @@ def payload_api():
                                     print("\nmessages:")
                                     print(messages)
                                     for message in messages:
+                                        message_from = message.get('from')
+                                        message_id = message.get('id')
+
                                         if message['type'] == "text":
-                                            message_from = message.get('from')
                                             message_body = message.get('text', {}).get('body')
-                                            message_id = message.get('id')
-
                                             reply_to_send, messages_array = open_ai_trial(message_body)
-                                            response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
-
-                                            print("\nmessasges array")
-                                            print(messages_array)
-
-                                            if response['status_code'] == 200:
-                                                #print(response['body'])
-                                                return 'HTTPS 200 OK', 200
                                             
+                                            if reply_to_send == "HTTPS 200 OK":
+                                                print("I think an error occurred in open_ai_trial method")
+                                                return ("HTTPS 200 OK", 200)
+
                                         elif message['type'] == "audio":
                                             audio = message["audio"]
                                             audio_media_id = audio["id"]
                                             response = audio_message(phone_number_id, audio_media_id)
-                                            # print("\n type (audio file)")
-                                            # type(response)
-                                            # print("\n response in type = audio ")
-                                            # print(response)
-                            
+                                            transcribed_text = transcribe_audio(response)
+
+                                            reply_to_send, messages_array = open_ai_trial(transcribed_text)
+                                            if reply_to_send == "HTTPS 200 OK":
+                                                print("I think an error occurred in open_ai_trial method")
+                                                return ("HTTPS 200 OK", 200)
+
+
+                                        response = sending_reply(phone_number_id, message_id, message_from, reply_to_send)
+                                        if response['status_code'] == 200:
+                                            open_ai_conversation_array.append(messages_array)
+                                            return 'HTTPS 200 OK', 200
+                                        else:
+                                            print("error occurred in sending the reply of the POST handler")
+                                            print(response)
+                                            return 'HTTPS 200 OK', 200
+                                        
                             if 'statuses' in value:
                                 statuses = value.get('statuses')
                                 if statuses is not None:
-                                    # print("statuses: \n")
-                                    # print(statuses)
                                     return "HTTPS 200 OK", 200
     
             except KeyError as e:

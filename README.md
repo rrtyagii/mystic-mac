@@ -42,7 +42,7 @@
     <a href="https://github.com/rrtyagii/mystic-mac"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/rrtyagii/mystic-mac">View Demo</a>
+    <a href="https://github.com/rrtyagii/mystic-mac/assets/47730677/98dbfa03-3752-4d8c-8b07-c8e8600f3c67">View Demo</a>
     ·
     <a href="https://github.com/othneildrew/Best-README-Template/issues">Report Bug</a>
     ·

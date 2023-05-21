@@ -19,7 +19,7 @@ from pymongo.mongo_client import MongoClient
 }
 
 """
-uri = "mongodb+srv://rrttyagii:d4Iogjb3GYiahc5w@mysticmac-whatsapp-chat.bjc0ufz.mongodb.net/?retryWrites=true&w=majority"
+uri = os.getenv("MONGO_DB_URI")
 client = MongoClient(uri)
 mongo_db_database = client['mysticmac_whatsapp_chatbot']
 chat_sessions = mongo_db_database['chat_sessions']

@@ -84,7 +84,7 @@ https://github.com/rrtyagii/mystic-mac/assets/47730677/ae8c3e69-9496-4ef7-9522-3
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Product Name Screen Shot][product-screenshot]](https://example.com)
+<!-- [![Product Name Screen Shot][product-screenshot]](https://example.com) -->
 
 I wanted to hack and create a chatbot for myself. Ended up dciding to make a whatsapp chatbot which connects to GPT-3.5-Turbo. This behaves somewhat like chat-gpt. I was insipired by [GOD IN A BOX](https://godinabox.co/). Do check them out!
 

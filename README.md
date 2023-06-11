@@ -37,7 +37,7 @@
   <h3 align="center">Mystic Mac</h3>
 
   <p align="center">
-    WhatsApp chatbot powered by GPT3! Made to resolve your parent's technilogical questions. 
+    WhatsApp chatbot powered by GPT3.5! Made to resolve your parent's technology related questions. 
     <br />
     <a href="https://github.com/rrtyagii/mystic-mac"><strong>Explore the docs »</strong></a>
     <br />
